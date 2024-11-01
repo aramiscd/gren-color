@@ -93,6 +93,7 @@ that has never helped me remember which one I should be writing.
 -}
 
 import Bitwise exposing (shiftLeftBy)
+import Math
 
 
 {-| Represents a color.
@@ -193,8 +194,8 @@ See also:
 hsla : Float -> Float -> Float -> Float -> Color
 hsla hue sat light alpha =
     let
-        ( h, s, l ) =
-            ( hue, sat, light )
+        { h, s, l } =
+            { h = hue, s = sat, l = light }
 
         m2 =
             if l <= 0.5 then
@@ -344,37 +345,37 @@ If the input string is not a valid hex string, it will return `Nothing`.
 -}
 fromHex : String -> Maybe Color
 fromHex hexString =
-    case String.toList hexString of
+    case String.toArray hexString of
         [ '#', r, g, b ] ->
-            fromHex8 ( r, r ) ( g, g ) ( b, b ) ( 'f', 'f' )
+            fromHex8 (pair r r) (pair g g) (pair b b) (pair 'f' 'f')
 
         [ r, g, b ] ->
-            fromHex8 ( r, r ) ( g, g ) ( b, b ) ( 'f', 'f' )
+            fromHex8 (pair r r) (pair g g) (pair b b) (pair 'f' 'f')
 
         [ '#', r, g, b, a ] ->
-            fromHex8 ( r, r ) ( g, g ) ( b, b ) ( a, a )
+            fromHex8 (pair r r) (pair g g) (pair b b) (pair a a)
 
         [ r, g, b, a ] ->
-            fromHex8 ( r, r ) ( g, g ) ( b, b ) ( a, a )
+            fromHex8 (pair r r) (pair g g) (pair b b) (pair a a)
 
         [ '#', r1, r2, g1, g2, b1, b2 ] ->
-            fromHex8 ( r1, r2 ) ( g1, g2 ) ( b1, b2 ) ( 'f', 'f' )
+            fromHex8 (pair r1 r2) (pair g1 g2) (pair b1 b2) (pair 'f' 'f')
 
         [ r1, r2, g1, g2, b1, b2 ] ->
-            fromHex8 ( r1, r2 ) ( g1, g2 ) ( b1, b2 ) ( 'f', 'f' )
+            fromHex8 (pair r1 r2) (pair g1 g2) (pair b1 b2) (pair 'f' 'f')
 
         [ '#', r1, r2, g1, g2, b1, b2, a1, a2 ] ->
-            fromHex8 ( r1, r2 ) ( g1, g2 ) ( b1, b2 ) ( a1, a2 )
+            fromHex8 (pair r1 r2) (pair g1 g2) (pair b1 b2) (pair a1 a2)
 
         [ r1, r2, g1, g2, b1, b2, a1, a2 ] ->
-            fromHex8 ( r1, r2 ) ( g1, g2 ) ( b1, b2 ) ( a1, a2 )
+            fromHex8 (pair r1 r2) (pair g1 g2) (pair b1 b2) (pair a1 a2)
 
         _ ->
             Nothing
 
 
-fromHex8 : ( Char, Char ) -> ( Char, Char ) -> ( Char, Char ) -> ( Char, Char ) -> Maybe Color
-fromHex8 ( r1, r2 ) ( g1, g2 ) ( b1, b2 ) ( a1, a2 ) =
+fromHex8 :  Pair Char Char ->  Pair Char Char ->  Pair Char Char ->  Pair Char Char -> Maybe Color
+fromHex8 hexRed hexGreen hexBlue hexAlpha =
     Maybe.map4
         (\r g b a ->
             RgbaSpace
@@ -383,10 +384,10 @@ fromHex8 ( r1, r2 ) ( g1, g2 ) ( b1, b2 ) ( a1, a2 ) =
                 (toFloat b / 255)
                 (toFloat a / 255)
         )
-        (hex2ToInt r1 r2)
-        (hex2ToInt g1 g2)
-        (hex2ToInt b1 b2)
-        (hex2ToInt a1 a2)
+        (hex2ToInt hexRed.v1 hexRed.v2)
+        (hex2ToInt hexGreen.v1 hexGreen.v2)
+        (hex2ToInt hexBlue.v1 hexBlue.v2)
+        (hex2ToInt hexAlpha.v1 hexAlpha.v2)
 
 
 hex2ToInt : Char -> Char -> Maybe Int
@@ -463,10 +464,10 @@ toHex c =
     in
     { hex =
         [ components.red, components.green, components.blue ]
-            |> List.map ((*) 255)
-            |> List.map round
-            |> List.map int255ToHex
-            |> String.concat
+            |> Array.map ((*) 255)
+            |> Array.map Math.round
+            |> Array.map int255ToHex
+            |> String.join ""
             |> (++) "#"
     , alpha = components.alpha
     }
@@ -482,11 +483,11 @@ int255ToHex n =
 
     else
         unsafeInt255Digits n
-            |> Tuple.mapBoth unsafeIntToChar unsafeIntToChar
-            |> (\( a, b ) -> String.cons a (String.cons b ""))
+            |> mapPair unsafeIntToChar unsafeIntToChar
+            |> (\tuple -> String.cons tuple.v1 (String.cons tuple.v2 ""))
 
 
-unsafeInt255Digits : Int -> ( Int, Int )
+unsafeInt255Digits : Int -> Pair Int Int
 unsafeInt255Digits n =
     let
         digit1 =
@@ -494,12 +495,12 @@ unsafeInt255Digits n =
 
         digit0 =
             if digit1 /= 0 then
-                modBy (digit1 * 16) n
+                Math.modBy (digit1 * 16) n
 
             else
                 n
     in
-    ( digit1, digit0 )
+    pair digit1 digit0
 
 
 unsafeIntToChar : Int -> Char
@@ -507,7 +508,7 @@ unsafeIntToChar i =
     if i < 10 then
         String.fromInt i
             |> String.uncons
-            |> Maybe.map Tuple.first
+            |> Maybe.map .first
             |> Maybe.withDefault '0'
 
     else
@@ -551,10 +552,10 @@ toCssString : Color -> String
 toCssString (RgbaSpace r g b a) =
     let
         pct x =
-            ((x * 10000) |> round |> toFloat) / 100
+            ((x * 10000) |> Math.round |> toFloat) / 100
 
         roundTo x =
-            ((x * 1000) |> round |> toFloat) / 1000
+            ((x * 1000) |> Math.round |> toFloat) / 1000
     in
     "rgba("
         ++ String.fromFloat (pct r)
@@ -763,3 +764,21 @@ charcoal =
 darkCharcoal : Color
 darkCharcoal =
     RgbaSpace (46 / 255) (52 / 255) (54 / 255) 1.0
+
+
+
+--Helpers
+
+
+type alias Pair a b =
+    { v1 : a, v2 : b }
+
+
+pair : a -> b -> Pair a b
+pair x y =
+    { v1 = x, v2 = y }
+
+
+mapPair : (a -> c) -> (b -> d) -> Pair a b -> Pair c d
+mapPair f1 f2 p =
+    pair (f1 p.v1) (f2 p.v2)

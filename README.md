@@ -1,3 +1,5 @@
+__todo: update readme__
+
 [![Build Status](https://travis-ci.org/avh4/elm-color.svg?branch=master)](https://travis-ci.org/avh4/elm-color)
 
 # elm-color
